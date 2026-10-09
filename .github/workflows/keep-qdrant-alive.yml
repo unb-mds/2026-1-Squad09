@@ -1,0 +1,35 @@
+name: Keep Qdrant Alive
+
+on:
+  schedule:
+    # Executa a cada 3 dias às 12:00 UTC (9:00 BRT)
+    - cron: '0 12 */3 * *'
+  workflow_dispatch: # Permite disparar manualmente pela aba Actions do GitHub
+
+jobs:
+  ping-qdrant:
+    name: Ping Qdrant API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar requisição para manter o cluster ativo
+        env:
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_KEY: ${{ secrets.QDRANT_KEY }}
+        run: |
+          if [ -z "$QDRANT_URL" ] || [ -z "$QDRANT_KEY" ]; then
+            echo "::error::As secrets QDRANT_URL ou QDRANT_KEY não estão configuradas no repositório."
+            exit 1
+          fi
+
+          # Remove espaços em branco ou barras finais que possam ter ficado na URL
+          CLEAN_URL=$(echo "$QDRANT_URL" | tr -d ' ' | sed 's:/*$::')
+
+          echo "Enviando ping para $CLEAN_URL/collections..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "api-key: $QDRANT_KEY" "$CLEAN_URL/collections")
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "Sucesso! Qdrant respondeu com status 200. Cluster mantido ativo."
+          else
+            echo "::error::Falha ao comunicar com o Qdrant. Status HTTP: $HTTP_STATUS"
+            exit 1
+          fi
